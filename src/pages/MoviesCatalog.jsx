@@ -1,15 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
-import { db } from '../config/firebase'; // Certifique-se de que este arquivo existe
 import { Plus, Trash2, X, Film, Star, Clock, AlertCircle } from 'lucide-react';
 
-// --- ANIMAÇÕES ---
+// ✅ IMPORTAÇÃO DO FIREBASE (Do seu projeto local)
+import { db } from '../config/firebase';
 
-const fadeIn = keyframes`
-  from { opacity: 0; }
-  to { opacity: 1; }
-`;
+// --- ANIMAÇÕES ---
 
 const slideDown = keyframes`
   from { opacity: 0; transform: translateY(-20px); }
@@ -21,6 +18,10 @@ const slideUp = keyframes`
   to { opacity: 1; transform: translateY(0); }
 `;
 
+const spin = keyframes`
+  to { transform: rotate(360deg); }
+`;
+
 // --- STYLED COMPONENTS ---
 
 const Container = styled.div`
@@ -28,6 +29,7 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   gap: 2rem;
+  padding-bottom: 2rem;
 `;
 
 const Header = styled.div`
@@ -70,7 +72,7 @@ const AddButton = styled.button`
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   cursor: pointer;
 
-  /* Estilo condicional para botão "Cancelar" (cinza) ou "Adicionar" (rosa) */
+  /* Estilo condicional: Cancelar (Cinza) vs Adicionar (Rosa/Primary) */
   ${props => props.$isAdding ? css`
     background-color: #374151;
     &:hover { background-color: #4b5563; }
@@ -81,7 +83,7 @@ const AddButton = styled.button`
   `}
 `;
 
-// --- FORMULÁRIO (MODAL INLINE) ---
+// --- FORMULÁRIO ---
 
 const FormContainer = styled.div`
   background-color: #111;
@@ -120,7 +122,7 @@ const InputGroup = styled.div`
   flex-direction: column;
   gap: 0.375rem;
   
-  /* Ocupa 2 colunas se tiver a prop $fullWidth */
+  /* Se $fullWidth for true, ocupa as 2 colunas */
   grid-column: ${props => props.$fullWidth ? '1 / -1' : 'auto'};
 `;
 
@@ -134,7 +136,7 @@ const Label = styled.label`
 
 const Input = styled.input`
   width: 100%;
-  background-color: var(--bg-dark);
+  background-color: #0a0a0a;
   border: 1px solid #333;
   border-radius: 0.5rem;
   padding: 0.75rem;
@@ -148,7 +150,7 @@ const Input = styled.input`
 
 const Select = styled.select`
   width: 100%;
-  background-color: var(--bg-dark);
+  background-color: #0a0a0a;
   border: 1px solid #333;
   border-radius: 0.5rem;
   padding: 0.75rem;
@@ -160,7 +162,7 @@ const Select = styled.select`
 
 const TextArea = styled.textarea`
   width: 100%;
-  background-color: var(--bg-dark);
+  background-color: #0a0a0a;
   border: 1px solid #333;
   border-radius: 0.5rem;
   padding: 0.75rem;
@@ -168,6 +170,7 @@ const TextArea = styled.textarea`
   outline: none;
   resize: vertical;
   min-height: 80px;
+  font-family: inherit;
   &:focus { border-color: var(--primary); }
 `;
 
@@ -192,7 +195,7 @@ const SubmitButton = styled.button`
   }
 `;
 
-// --- MOVIE CARD ---
+// --- GRID DE FILMES ---
 
 const Grid = styled.div`
   display: grid;
@@ -217,10 +220,9 @@ const MovieCardContainer = styled.div`
     border-color: #555;
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
     
-    /* Revela o botão de delete */
+    /* Revela o botão de delete e dá zoom na imagem */
     .delete-overlay { opacity: 1; }
-    /* Zoom na imagem */
-    img { transform: scale(1.1); }
+    img { transform: scale(1.1); opacity: 1; }
   }
 `;
 
@@ -234,8 +236,8 @@ const PosterImage = styled.img`
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.5s ease;
-  opacity: 0.9;
+  transition: transform 0.5s ease, opacity 0.3s ease;
+  opacity: 0.8;
 `;
 
 const RatingBadge = styled.div`
@@ -274,6 +276,9 @@ const DeleteButton = styled.button`
   border-radius: 9999px;
   transition: all 0.2s;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
   &:hover {
     background-color: #ef4444;
@@ -300,6 +305,9 @@ const MovieGenre = styled.p`
   font-size: 0.75rem;
   color: #9ca3af;
   margin-bottom: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 const CardFooter = styled.div`
@@ -353,13 +361,27 @@ const EmptyState = styled.div`
   }
 `;
 
-// --- COMPONENTE ---
+const LoadingState = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 16rem;
+  color: #6b7280;
+  gap: 0.75rem;
+  
+  svg {
+    animation: ${spin} 1s linear infinite;
+  }
+`;
+
+// --- COMPONENTE PRINCIPAL ---
 
 const MoviesCatalog = () => {
   const [movies, setMovies] = useState([]);
   const [isAdding, setIsAdding] = useState(false);
   const [loading, setLoading] = useState(true);
   
+  // Estado do Formulário
   const [form, setForm] = useState({
     titulo: '',
     sinopse: '',
@@ -371,18 +393,28 @@ const MoviesCatalog = () => {
     mediaAvaliacao: 0
   });
 
+  // Listener do Firestore
   useEffect(() => {
-    if (!db) { setLoading(false); return; }
+    // Proteção caso o db não esteja inicializado (ex: erro de config)
+    if (!db) { 
+      setLoading(false); 
+      return; 
+    }
+
     const q = query(collection(db, "filmes"), orderBy("titulo"));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setMovies(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    }, (error) => {
+      console.error("Erro ao buscar filmes:", error);
       setLoading(false);
     });
     
     return () => unsubscribe();
   }, []);
 
+  // Salvar Filme
   const handleSave = async (e) => {
     e.preventDefault();
     if (!form.titulo || !form.imagemUrl) {
@@ -401,21 +433,29 @@ const MoviesCatalog = () => {
       setForm({ titulo: '', sinopse: '', imagemUrl: '', backdropUrl: '', genero: '', duracao: '', classificacao: 'Livre', mediaAvaliacao: 0 });
       alert("Filme adicionado!");
     } catch (error) {
-      alert("Erro ao adicionar filme.");
+      console.error(error);
+      alert("Erro ao adicionar filme. Verifique permissões de Admin.");
     }
   };
 
+  // Excluir Filme
   const handleDelete = async (id) => {
     if(confirm("Excluir filme permanentemente?")) {
       try {
         await deleteDoc(doc(db, "filmes", id));
       } catch (error) {
-        alert("Erro ao excluir.");
+        alert("Erro ao excluir. Verifique permissões de Admin.");
       }
     }
   };
 
-  if (loading) return <div style={{display:'flex', height:'16rem', justifyContent:'center', alignItems:'center', color:'#6b7280'}}>Carregando...</div>;
+  if (loading) {
+    return (
+      <LoadingState>
+        <Film size={24} /> Carregando catálogo...
+      </LoadingState>
+    );
+  }
 
   return (
     <Container>

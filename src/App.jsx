@@ -11,6 +11,7 @@ import LoginScreen from './pages/LoginScreen';
 import Dashboard from './pages/Dashboard';
 import TicketValidation from './pages/TicketValidation';
 import MoviesCatalog from './pages/MoviesCatalog';
+import UsersManagement from './pages/UserManagament';
 
 // Layout
 import AdminLayout from './components/AdminLayout';
@@ -149,6 +150,7 @@ function App() {
         {view === 'dashboard' && <Dashboard />}
         {view === 'tickets' && <TicketValidation />}
         {view === 'movies' && <MoviesCatalog />}
+        {view === 'users' && <UsersManagement />}
       </AdminLayout>
     );
   };
@@ -160,26 +162,7 @@ function App() {
       {/* 1. O App Real */}
       {renderContent()}
 
-      {/* 2. Menu Flutuante de Desenvolvimento */}
-      <DevMenuContainer>
-        <h4><Eye size={14}/> Visualização Rápida</h4>
-        
-        <DevButton onClick={goToLogin}>
-          <Lock /> Tela de Login
-        </DevButton>
-        
-        <DevButton onClick={() => forcePage('dashboard')}>
-          <LayoutGrid /> Dashboard
-        </DevButton>
-        
-        <DevButton onClick={() => forcePage('movies')}>
-          <Film /> Catálogo Filmes
-        </DevButton>
-        
-        <DevButton onClick={() => forcePage('tickets')}>
-          <TicketIcon /> Validar Tickets
-        </DevButton>
-      </DevMenuContainer>
+    
     </>
   );
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
-import { LayoutDashboard, Ticket, Film, LogOut } from 'lucide-react';
+import { LayoutDashboard, Ticket, Film, LogOut, Users } from 'lucide-react';
 
 // --- Styled Components ---
 
@@ -137,48 +137,49 @@ const MainContent = styled.main`
 // --- Componente ---
 
 const AdminLayout = ({ children, currentView, onViewChange, onLogout }) => {
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'tickets', label: 'Validar Tickets', icon: Ticket },
-    { id: 'movies', label: 'Catálogo de Filmes', icon: Film },
-  ];
+    const menuItems = [
+        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'tickets', label: 'Validar Tickets', icon: Ticket },
+        { id: 'movies', label: 'Catálogo de Filmes', icon: Film },
+        { id: 'users', label: 'Usuários', icon: Users },
+    ];
 
-  return (
-    <LayoutContainer>
-      <Sidebar>
-        <SidebarHeader>
-          <h1>
-            CINE<span className="highlight">PASSE</span>
-            <span className="subtitle">BACKOFFICE</span>
-          </h1>
-        </SidebarHeader>
-        
-        <Nav>
-          {menuItems.map(item => (
-            <NavButton
-              key={item.id}
-              onClick={() => onViewChange(item.id)}
-              $active={currentView === item.id}
-            >
-              <item.icon size={20} />
-              <span>{item.label}</span>
-            </NavButton>
-          ))}
-        </Nav>
+    return (
+        <LayoutContainer>
+            <Sidebar>
+                <SidebarHeader>
+                    <h1>
+                        CINE<span className="highlight">PASSE</span>
+                        <span className="subtitle">BACKOFFICE</span>
+                    </h1>
+                </SidebarHeader>
 
-        <SidebarFooter>
-          <LogoutButton onClick={onLogout}>
-            <LogOut size={18} />
-            <span>Sair do Sistema</span>
-          </LogoutButton>
-        </SidebarFooter>
-      </Sidebar>
+                <Nav>
+                    {menuItems.map(item => (
+                        <NavButton
+                            key={item.id}
+                            onClick={() => onViewChange(item.id)}
+                            $active={currentView === item.id}
+                        >
+                            <item.icon size={20} />
+                            <span>{item.label}</span>
+                        </NavButton>
+                    ))}
+                </Nav>
 
-      <MainContent>
-        {children}
-      </MainContent>
-    </LayoutContainer>
-  );
+                <SidebarFooter>
+                    <LogoutButton onClick={onLogout}>
+                        <LogOut size={18} />
+                        <span>Sair do Sistema</span>
+                    </LogoutButton>
+                </SidebarFooter>
+            </Sidebar>
+
+            <MainContent>
+                {children}
+            </MainContent>
+        </LayoutContainer>
+    );
 };
 
 export default AdminLayout;

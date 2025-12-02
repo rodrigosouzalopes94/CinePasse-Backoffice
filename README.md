@@ -1,16 +1,98 @@
-# React + Vite
+🎬 CinePasse Admin (Backoffice)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+O CinePasse Admin é o painel de controle web para a gestão da plataforma de cinema CinePasse. Ele permite que administradores gerenciem o catálogo de filmes, validem ingressos em tempo real e acompanhem as métricas de vendas.
 
-Currently, two official plugins are available:
+Este projeto opera em conjunto com o App Mobile CinePasse (Flutter), compartilhando o mesmo banco de dados Firebase.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+🖥️ Funcionalidades
 
-## React Compiler
+1. Dashboard
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Visão geral em tempo real.
 
-## Expanding the ESLint configuration
+Contadores de vendas, tickets pendentes e usuários ativos.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Indicador de status do sistema.
+
+2. Validação de Tickets (Core Business)
+
+Listagem de todas as reservas feitas pelo App Mobile.
+
+Aprovação: Confirma o pagamento ou assinatura e libera o ingresso para o usuário.
+
+Rejeição: Cancela a reserva.
+
+Filtros por status (Pendente, Aprovado, Rejeitado) e busca por código.
+
+3. Catálogo de Filmes
+
+Adição de novos filmes (Título, Gênero, Poster, Sinopse).
+
+Exclusão de filmes.
+
+Atualização instantânea no App Mobile.
+
+🛠️ Tecnologias
+
+Frontend: React.js (Vite)
+
+Estilização: Styled Components (CSS-in-JS)
+
+Ícones: Lucide React
+
+Backend: Firebase (Auth & Firestore)
+
+🚀 Como Rodar Localmente
+
+Pré-requisitos
+
+Node.js instalado (versão 16+).
+
+Projeto configurado no Firebase.
+
+Instalação
+
+Clone o repositório:
+
+git clone [https://github.com/rodrigosouzalopes94/CinePasse-Backoffice.git](https://github.com/rodrigosouzalopes94/CinePasse-Backoffice.git)
+cd CinePasse-Backoffice
+
+
+Instale as dependências:
+
+npm install
+
+
+Configure o Firebase:
+
+Crie o arquivo src/config/firebase.js.
+
+Cole suas chaves de API (veja o arquivo FIREBASE_SETUP.md se disponível ou consulte o console do Firebase).
+
+Inicie o servidor de desenvolvimento:
+
+npm run dev
+
+
+Acesse http://localhost:5173 no navegador.
+
+📦 Deploy
+
+Este projeto está configurado para deploy fácil na Vercel ou Firebase Hosting.
+
+Build de Produção
+
+npm run build
+
+
+Isso gerará a pasta dist/ pronta para publicação.
+
+🔐 Regras de Segurança
+
+O acesso ao painel é restrito.
+
+Login: Requer autenticação via Firebase Auth.
+
+Permissões: As operações de escrita (Aprovar Ticket, Adicionar Filme) são protegidas por Firestore Security Rules e exigem que o usuário tenha o UID de Administrador.
+
+Desenvolvido para o ecossistema CinePasse.
