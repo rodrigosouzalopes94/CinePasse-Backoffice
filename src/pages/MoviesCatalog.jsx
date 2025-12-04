@@ -1,26 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import styled, { keyframes, css } from 'styled-components';
-import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
-import { Plus, Trash2, X, Film, Star, Clock, AlertCircle } from 'lucide-react';
-
-// ✅ IMPORTAÇÃO DO FIREBASE (Do seu projeto local)
-import { db } from '../config/firebase';
+import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"; 
+import { Plus, Trash2, X, Film, Star, Clock, AlertCircle, Edit2 } from 'lucide-react';
+import { db } from '../config/firebase'; // Sua conexão real
 
 // --- ANIMAÇÕES ---
 
-const slideDown = keyframes`
-  from { opacity: 0; transform: translateY(-20px); }
-  to { opacity: 1; transform: translateY(0); }
-`;
-
-const slideUp = keyframes`
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-`;
-
-const spin = keyframes`
-  to { transform: rotate(360deg); }
-`;
+const slideDown = keyframes` from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } `;
+const slideUp = keyframes` from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } `;
 
 // --- STYLED COMPONENTS ---
 
@@ -72,7 +60,6 @@ const AddButton = styled.button`
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   cursor: pointer;
 
-  /* Estilo condicional: Cancelar (Cinza) vs Adicionar (Rosa/Primary) */
   ${props => props.$isAdding ? css`
     background-color: #374151;
     &:hover { background-color: #4b5563; }
@@ -175,7 +162,7 @@ const TextArea = styled.textarea`
 `;
 
 const SubmitButton = styled.button`
-  grid-column: 1 / -1;
+  width: 200px; /* Largura fixa no botão de submit */
   padding: 1rem;
   background: linear-gradient(90deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
@@ -192,6 +179,25 @@ const SubmitButton = styled.button`
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 0 25px rgba(255, 45, 85, 0.6);
+  }
+`;
+
+const CancelButton = styled.button`
+  width: 200px; /* Largura fixa no botão de cancelar */
+  padding: 1rem;
+  background-color: #374151;
+  color: white;
+  font-weight: 700;
+  border: none;
+  border-radius: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: 0.5rem;
+  transition: all 0.3s ease;
+  cursor: pointer;
+
+  &:hover {
+    background-color: #4b5563;
   }
 `;
 
@@ -221,7 +227,7 @@ const MovieCardContainer = styled.div`
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
     
     /* Revela o botão de delete e dá zoom na imagem */
-    .delete-overlay { opacity: 1; }
+    .action-overlay { opacity: 1; }
     img { transform: scale(1.1); opacity: 1; }
   }
 `;
@@ -257,18 +263,19 @@ const RatingBadge = styled.div`
   gap: 0.25rem;
 `;
 
-const DeleteOverlay = styled.div`
+const ActionOverlay = styled.div` /* Renomeado de DeleteOverlay */
   position: absolute;
   inset: 0;
   background-color: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 1rem;
   opacity: 0;
   transition: opacity 0.3s ease;
 `;
 
-const DeleteButton = styled.button`
+const ActionButton = styled.button`
   background-color: rgba(239, 68, 68, 0.2);
   color: #f87171;
   border: 1px solid rgba(239, 68, 68, 0.5);
@@ -280,9 +287,18 @@ const DeleteButton = styled.button`
   align-items: center;
   justify-content: center;
 
+  ${props => props.$variant === 'edit' ? css`
+    background-color: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+    border-color: rgba(59, 130, 246, 0.5);
+    &:hover { background-color: #3b82f6; color: white; }
+  ` : css`
+    background-color: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+    &:hover { background-color: #ef4444; color: white; }
+  `}
+
   &:hover {
-    background-color: #ef4444;
-    color: white;
     transform: scale(1.1);
   }
 `;
@@ -370,30 +386,61 @@ const LoadingState = styled.div`
   gap: 0.75rem;
   
   svg {
-    animation: ${spin} 1s linear infinite;
+    animation: spin 1s linear infinite;
   }
 `;
 
 // --- COMPONENTE PRINCIPAL ---
 
 const MoviesCatalog = () => {
-  const [movies, setMovies] = useState([]);
-  const [isAdding, setIsAdding] = useState(false);
-  const [loading, setLoading] = useState(true);
-  
-  // Estado do Formulário
-  const [form, setForm] = useState({
-    titulo: '',
-    sinopse: '',
-    imagemUrl: '',
-    backdropUrl: '',
-    genero: '',
-    duracao: '',
-    classificacao: 'Livre',
-    mediaAvaliacao: 0
+  // Estado inicial do formulário vazio (para modo Adição)
+  const emptyFormState = {
+    titulo: '', sinopse: '', imagemUrl: '', backdropUrl: '', genero: '', duracao: '', classificacao: 'Livre', mediaAvaliacao: '0.0'
+  };
+
+  // Use um objeto para gerenciar o estado do formulário e o ID do filme
+  const [movieModalState, setMovieModalState] = useState({
+    isOpen: false,
+    isEditing: false,
+    currentMovieId: null,
+    form: emptyFormState
   });
 
-  // Listener do Firestore
+  const [movies, setMovies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false); 
+  const [selectedFile, setSelectedFile] = useState(null);
+  
+  // Função que lida com a seleção do arquivo
+  const handleFileChange = (e) => {
+    if (e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
+
+  // Função centralizada para upload no Firebase Storage
+  const uploadImage = async (file) => {
+    if (!file) return null;
+
+    setUploading(true);
+    // ⚠️ Importante: storage deve estar definido e exportado no seu firebase.js
+    const storageInstance = getStorage(); 
+    const fileName = `${Date.now()}_${file.name}`;
+    const storageRef = ref(storageInstance, 'movie_posters/' + fileName);
+
+    try {
+      const snapshot = await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(snapshot.ref);
+      setUploading(false);
+      return url;
+    } catch (error) {
+      setUploading(false);
+      console.error("Erro no upload do Storage:", error);
+      throw new Error("Falha ao enviar imagem. Verifique as Regras do Storage.");
+    }
+  };
+
+
   useEffect(() => {
     // Proteção caso o db não esteja inicializado (ex: erro de config)
     if (!db) { 
@@ -413,32 +460,94 @@ const MoviesCatalog = () => {
     
     return () => unsubscribe();
   }, []);
-
-  // Salvar Filme
-  const handleSave = async (e) => {
-    e.preventDefault();
-    if (!form.titulo || !form.imagemUrl) {
-      alert("Preencha pelo menos o título e a imagem.");
-      return;
-    }
-
-    try {
-      await addDoc(collection(db, "filmes"), {
-        ...form,
-        mediaAvaliacao: parseFloat(form.mediaAvaliacao),
-        dataCriacao: serverTimestamp()
+  
+  // Ação de Abrir o Modal de Adição/Edição
+  const openModal = (movie = null) => {
+    // ⚠️ CORREÇÃO 1: Limpar o selectedFile ao abrir o modal
+    setSelectedFile(null); 
+    
+    if (movie) {
+      // Modo Edição
+      setMovieModalState({
+        isOpen: true,
+        isEditing: true,
+        currentMovieId: movie.id,
+        // Converte nota para string para o input
+        form: { ...movie, mediaAvaliacao: String(movie.mediaAvaliacao || 0) } 
       });
-      
-      setIsAdding(false);
-      setForm({ titulo: '', sinopse: '', imagemUrl: '', backdropUrl: '', genero: '', duracao: '', classificacao: 'Livre', mediaAvaliacao: 0 });
-      alert("Filme adicionado!");
-    } catch (error) {
-      console.error(error);
-      alert("Erro ao adicionar filme. Verifique permissões de Admin.");
+    } else {
+      // Modo Adição
+      setMovieModalState({
+        isOpen: true,
+        isEditing: false,
+        currentMovieId: null,
+        form: emptyFormState // ✅ USANDO O ESTADO VAZIO
+      });
     }
   };
 
-  // Excluir Filme
+  const closeModal = () => {
+    // 🚀 CORREÇÃO 2: Resetar o estado do modal para o default (adição)
+    setMovieModalState({ isOpen: false, isEditing: false, currentMovieId: null, form: emptyFormState });
+    setSelectedFile(null);
+  };
+  
+  const handleSave = async (e) => {
+    e.preventDefault();
+    const { isEditing, currentMovieId, form } = movieModalState;
+    
+    if (!form.titulo) {
+      alert("O título é obrigatório.");
+      return;
+    }
+    
+    let posterUrl = form.imagemUrl;
+
+    try {
+      // 1. Upload para o Firebase Storage se um arquivo foi selecionado
+      if (selectedFile) {
+        posterUrl = await uploadImage(selectedFile);
+      } else if (!form.imagemUrl) {
+         // Se não selecionou arquivo e o campo URL está vazio, usamos placeholder
+         posterUrl = 'https://placehold.co/400x600?text=Sem+Imagem';
+      }
+      
+      const dataToSave = {
+        ...form,
+        imagemUrl: posterUrl,
+        mediaAvaliacao: parseFloat(form.mediaAvaliacao),
+        backdropUrl: form.backdropUrl || null, 
+      };
+      
+      if (isEditing) {
+        // Modo EDIÇÃO
+        await updateDoc(doc(db, "filmes", currentMovieId), dataToSave);
+      } else {
+        // Modo ADIÇÃO
+        await addDoc(collection(db, "filmes"), {
+          ...dataToSave,
+          dataCriacao: serverTimestamp()
+        });
+      }
+      
+      closeModal();
+      alert(`Filme ${isEditing ? 'atualizado' : 'adicionado'} com sucesso!`);
+    } catch (error) {
+      alert(`Erro ao salvar filme: ${error.message}`);
+    }
+  };
+  
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    setMovieModalState(prev => ({
+      ...prev,
+      form: {
+        ...prev.form,
+        [name]: value,
+      }
+    }));
+  };
+  
   const handleDelete = async (id) => {
     if(confirm("Excluir filme permanentemente?")) {
       try {
@@ -465,16 +574,16 @@ const MoviesCatalog = () => {
           <p>Gerencie os títulos disponíveis no app.</p>
         </TitleGroup>
         
-        <AddButton onClick={() => setIsAdding(!isAdding)} $isAdding={isAdding}>
-          {isAdding ? <X size={18} /> : <Plus size={18} />}
-          {isAdding ? 'Cancelar' : 'Adicionar Filme'}
+        {/* Botão Principal: Adicionar Novo Filme */}
+        <AddButton onClick={() => openModal()}>
+          <Plus size={18} /> Adicionar Filme
         </AddButton>
       </Header>
 
-      {isAdding && (
-        <FormContainer>
+      {movieModalState.isOpen && (
+        <FormContainer style={{gridColumn: '1 / -1'}}>
           <FormHeader>
-            <Film size={20} /> Novo Filme
+            <Film size={20} /> {movieModalState.isEditing ? 'Editar Filme' : 'Novo Filme'}
           </FormHeader>
           
           <FormGrid onSubmit={handleSave}>
@@ -482,22 +591,22 @@ const MoviesCatalog = () => {
             <div style={{display: 'flex', flexDirection: 'column', gap: '1.5rem'}}>
               <InputGroup>
                 <Label>Título</Label>
-                <Input required placeholder="Ex: Duna" value={form.titulo} onChange={e => setForm({...form, titulo: e.target.value})} />
+                <Input required name="titulo" placeholder="Ex: Duna" value={movieModalState.form.titulo} onChange={handleFormChange} />
               </InputGroup>
               
               <InputGroup>
                 <Label>Gênero</Label>
-                <Input required placeholder="Ex: Ficção" value={form.genero} onChange={e => setForm({...form, genero: e.target.value})} />
+                <Input required name="genero" placeholder="Ex: Ficção" value={movieModalState.form.genero} onChange={handleFormChange} />
               </InputGroup>
 
               <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem'}}>
                 <InputGroup>
                   <Label>Duração</Label>
-                  <Input placeholder="2h 30min" value={form.duracao} onChange={e => setForm({...form, duracao: e.target.value})} />
+                  <Input name="duracao" placeholder="2h 30min" value={movieModalState.form.duracao} onChange={handleFormChange} />
                 </InputGroup>
                 <InputGroup>
                   <Label>Classif.</Label>
-                  <Select value={form.classificacao} onChange={e => setForm({...form, classificacao: e.target.value})}>
+                  <Select name="classificacao" value={movieModalState.form.classificacao} onChange={handleFormChange}>
                     <option value="Livre">Livre</option>
                     <option value="10">10</option>
                     <option value="12">12</option>
@@ -512,27 +621,39 @@ const MoviesCatalog = () => {
             {/* Coluna 2 */}
             <div style={{display: 'flex', flexDirection: 'column', gap: '1.5rem'}}>
               <InputGroup>
-                <Label>Poster URL</Label>
-                <Input required placeholder="https://..." value={form.imagemUrl} onChange={e => setForm({...form, imagemUrl: e.target.value})} />
-              </InputGroup>
-              
-              <InputGroup>
-                <Label>Backdrop URL</Label>
-                <Input placeholder="https://..." value={form.backdropUrl} onChange={e => setForm({...form, backdropUrl: e.target.value})} />
+                <Label>Upload Poster</Label>
+                <Input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleFileChange}
+                  style={{paddingTop: '0.9rem', paddingBottom: '0.9rem'}}
+                />
+                {(selectedFile || movieModalState.form.imagemUrl) && (
+                   <p style={{color: '#4ade80', fontSize: '0.75rem'}}>
+                     {selectedFile ? `Arquivo selecionado: ${selectedFile.name}` : `URL Atual: ${movieModalState.form.imagemUrl.slice(0, 30)}...`}
+                   </p>
+                )}
               </InputGroup>
 
               <InputGroup>
                 <Label>Nota (0-5)</Label>
-                <Input type="number" step="0.1" max="5" value={form.mediaAvaliacao} onChange={e => setForm({...form, mediaAvaliacao: e.target.value})} />
+                <Input name="mediaAvaliacao" type="number" step="0.1" max="5" value={movieModalState.form.mediaAvaliacao} onChange={handleFormChange} />
               </InputGroup>
+              
+              <InputGroup>
+                <Label>Sinopse</Label>
+                <TextArea name="sinopse" rows="3" placeholder="Descrição..." value={movieModalState.form.sinopse} onChange={handleFormChange} />
+              </InputGroup>
+              
             </div>
 
-            <InputGroup $fullWidth>
-              <Label>Sinopse</Label>
-              <TextArea rows="3" placeholder="Descrição..." value={form.sinopse} onChange={e => setForm({...form, sinopse: e.target.value})} />
+            <InputGroup $fullWidth style={{display: 'flex', flexDirection: 'row', gap: '1rem', justifyContent: 'flex-end'}}>
+              {/* Botão de Cancelar sempre visível e funcional no modal */}
+              <CancelButton onClick={closeModal} type="button">CANCELAR</CancelButton>
+              <SubmitButton disabled={uploading}>
+                {uploading ? <><span style={{display:'inline-block', width:'1.2em', height:'1.2em', border:'2px solid rgba(255,255,255,0.7)', borderTopColor:'white', borderRadius:'50%', animation:'spin 1s linear infinite', marginRight:'0.5rem'}}></span> ENVIANDO IMAGEM...</> : movieModalState.isEditing ? 'Salvar Edição' : 'Adicionar Filme'}
+              </SubmitButton>
             </InputGroup>
-
-            <SubmitButton>Salvar Filme</SubmitButton>
           </FormGrid>
         </FormContainer>
       )}
@@ -549,11 +670,14 @@ const MoviesCatalog = () => {
               <RatingBadge>
                 <Star size={10} fill="currentColor" /> {m.mediaAvaliacao}
               </RatingBadge>
-              <DeleteOverlay className="delete-overlay">
-                <DeleteButton onClick={() => handleDelete(m.id)} title="Excluir">
+              <ActionOverlay className="action-overlay">
+                <ActionButton $variant="edit" onClick={() => openModal(m)} title="Editar Filme">
+                  <Edit2 size={20} />
+                </ActionButton>
+                <ActionButton $variant="delete" onClick={() => handleDelete(m.id)} title="Excluir">
                   <Trash2 size={20} />
-                </DeleteButton>
-              </DeleteOverlay>
+                </ActionButton>
+              </ActionOverlay>
             </ImageContainer>
 
             <CardContent>

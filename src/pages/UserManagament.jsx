@@ -1,15 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import styled, { keyframes, css } from 'styled-components';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, where } from "firebase/firestore";
-import { User, Search, Edit2, Ticket, Calendar, CreditCard, X } from 'lucide-react';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, where } from "firebase/firestore";
+import { User, Search, Edit2, Ticket, Calendar, CreditCard, X, Trash2 } from 'lucide-react';
 
 // -----------------------------------------------------------------------------
-// CONFIGURAÇÃO FIREBASE (INLINE PARA EVITAR ERROS DE IMPORTAÇÃO NO CHAT)
+// CONFIGURAÇÃO FIREBASE (INLINE PARA VISUALIZAÇÃO)
 // -----------------------------------------------------------------------------
-// ⚠️ NO SEU PROJETO LOCAL (VS CODE): 
-// 1. Apague todo este bloco de configuração abaixo (até o fim da linha tracejada).
-// 2. Descomente a linha de importação real:
-// import { db } from '../config/firebase';
+// ⚠️ NO SEU PROJETO LOCAL: Use o import limpo: import { db } from '../config/firebase';
 
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
@@ -99,7 +96,15 @@ const Table = styled.table`
   text-align: left;
   th { background-color: rgba(0,0,0,0.4); padding: 1rem 1.5rem; font-size: 0.75rem; font-weight: 700; color: #6b7280; text-transform: uppercase; }
   td { padding: 1.25rem 1.5rem; border-bottom: 1px solid #1f1f1f; color: #d1d5db; font-size: 0.875rem; }
-  tbody tr:hover { background-color: rgba(255, 255, 255, 0.02); cursor: pointer; }
+  tbody tr {
+    cursor: pointer;
+    transition: background-color 0.2s;
+    
+    &:hover { background-color: rgba(255, 255, 255, 0.02); }
+    
+    /* Permite selecionar a linha para o modal */
+    &.user-row { cursor: pointer; }
+  }
 `;
 
 const PlanBadge = styled.span`
@@ -123,8 +128,8 @@ const PlanBadge = styled.span`
 const ModalOverlay = styled.div`
   position: fixed;
   inset: 0;
-  background-color: rgba(0,0,0,0.8);
-  backdrop-filter: blur(4px);
+  background-color: rgba(0,0,0,0.85);
+  backdrop-filter: blur(5px);
   z-index: 50;
   display: flex;
   justify-content: center;
@@ -138,11 +143,11 @@ const ModalCard = styled.div`
   border: 1px solid #333;
   border-radius: 1rem;
   width: 100%;
-  max-width: 800px;
+  max-width: 900px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
 `;
 
 const ModalHeader = styled.div`
@@ -151,56 +156,79 @@ const ModalHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  h3 { font-size: 1.25rem; font-weight: 700; color: white; }
+  
+  h3 { font-size: 1.25rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 0.5rem; }
   button { background: transparent; border: none; color: #6b7280; cursor: pointer; &:hover { color: white; } }
 `;
 
 const ModalBody = styled.div`
-  padding: 1.5rem;
-  overflow-y: auto;
+  padding: 0;
+  overflow: hidden;
   display: grid;
   grid-template-columns: 1fr;
   gap: 2rem;
   
-  @media (min-width: 768px) { grid-template-columns: 1fr 1.5fr; }
+  @media (min-width: 768px) { grid-template-columns: 350px 1fr; min-height: 500px; }
 `;
 
-const UserInfoSection = styled.div`
+const SidebarInfo = styled.div`
+  background-color: #0a0a0a;
+  padding: 2rem;
+  border-right: 1px solid #222;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  padding-right: 1rem;
-  border-right: 1px solid #222;
+  overflow-y: auto;
+  min-height: 500px;
   
   @media (max-width: 768px) {
-    padding-right: 0;
     border-right: none;
     border-bottom: 1px solid #222;
     padding-bottom: 1rem;
   }
 `;
 
+const ContentInfo = styled.div`
+  padding: 2rem;
+  background-color: #111;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+`;
+
 const InfoGroup = styled.div`
   label { display: block; font-size: 0.75rem; color: #6b7280; text-transform: uppercase; font-weight: 700; margin-bottom: 0.5rem; }
   p, input, select { 
     width: 100%;
-    background: #0a0a0a;
+    background: #161616;
     border: 1px solid #333;
     padding: 0.75rem;
     border-radius: 0.5rem;
     color: white;
     font-size: 0.9rem;
   }
-  input:focus, select:focus { outline: none; border-color: var(--primary); }
+  input:focus, select:focus { outline: none; border-color: var(--primary); background: #0a0a0a; }
 `;
 
 const HistorySection = styled.div`
+  flex: 1;
   background-color: #0a0a0a;
   border-radius: 0.75rem;
   border: 1px solid #333;
   padding: 1rem;
+  display: flex;
+  flex-direction: column;
   
   h4 { font-size: 0.9rem; color: #9ca3af; margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+`;
+
+const TicketHistoryList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 0.5rem 0;
 `;
 
 const TicketItem = styled.div`
@@ -221,9 +249,33 @@ const TicketItem = styled.div`
   .rejected { color: #ef4444; }
 `;
 
+const ActionGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+`;
+
+const DeleteTableButton = styled.button`
+  background: none;
+  border: none;
+  color: #ef4444;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: color 0.2s;
+  
+  &:hover {
+    color: var(--primary);
+  }
+`;
+
 const SaveButton = styled.button`
   width: 100%;
-  padding: 0.75rem;
+  padding: 1rem;
   background: var(--primary);
   color: white;
   font-weight: 700;
@@ -231,7 +283,10 @@ const SaveButton = styled.button`
   border-radius: 0.5rem;
   margin-top: 1rem;
   cursor: pointer;
-  &:hover { filter: brightness(1.1); }
+  transition: all 0.2s;
+  box-shadow: 0 4px 15px rgba(255, 45, 85, 0.3);
+  
+  &:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255, 45, 85, 0.4); }
 `;
 
 // --- COMPONENTE PRINCIPAL ---
@@ -260,14 +315,14 @@ const UsersManagement = () => {
     return () => unsub();
   }, []);
 
-  // 2. Carregar Histórico ao Selecionar
+  // 2. Carregar Histórico
   useEffect(() => {
     if (!selectedUser?.id) {
       setUserHistory([]);
       return;
     }
 
-    // Query com tratamento de erro caso falte índice
+    // Query para buscar histórico ordenado (Exige índice composto no Firebase)
     try {
       const q = query(
         collection(db, "tickets"), 
@@ -287,6 +342,7 @@ const UsersManagement = () => {
     } catch (e) {}
   }, [selectedUser?.id]);
 
+  // 3. Atualizar/Editar Usuário
   const handleUpdateUser = async (e) => {
     e.preventDefault();
     if(!selectedUser) return;
@@ -301,9 +357,27 @@ const UsersManagement = () => {
       alert("Usuário atualizado com sucesso!");
       setSelectedUser(null);
     } catch (error) {
-      alert("Erro ao atualizar. Verifique se você é Admin.");
+      alert("Erro ao atualizar. Verifique permissões.");
     }
   };
+  
+  // 4. Deletar Usuário
+  const handleDeleteUser = async (userId, userName) => {
+    if (!confirm(`ATENÇÃO: Deseja realmente DELETAR o usuário ${userName}? Isso é irreversível e removerá todos os dados do Firestore.`)) return;
+
+    try {
+      // Deleta o documento do perfil no Firestore
+      await deleteDoc(doc(db, "users", userId));
+      
+      // NOTA: A conta de autenticação do Firebase (Auth) precisaria ser deletada via Cloud Functions ou Admin SDK.
+
+      alert(`Usuário ${userName} foi removido do Firestore.`);
+      setSelectedUser(null);
+    } catch (error) {
+      alert("Erro ao deletar. Verifique as Regras de Segurança do Firestore.");
+    }
+  };
+
 
   const filteredUsers = users.filter(u => 
     (u.nome && u.nome.toLowerCase().includes(searchTerm.toLowerCase())) || 
@@ -341,12 +415,13 @@ const UsersManagement = () => {
               <th>Idade</th>
               <th>Plano</th>
               <th>Permissão</th>
-              <th style={{textAlign:'right'}}>Editar</th>
+              <th style={{textAlign:'right'}}>Ações</th>
             </tr>
           </thead>
           <tbody>
             {filteredUsers.map(user => (
-              <tr key={user.id} onClick={() => setSelectedUser(user)}>
+              // Ao clicar na linha, abre o modal
+              <tr key={user.id} onClick={() => setSelectedUser(user)} className="user-row">
                 <td>
                   <div style={{fontWeight: 600, color: 'white'}}>{user.nome || 'Sem Nome'}</div>
                   <div style={{fontSize:'0.75rem', color:'#6b7280'}}>{user.email}</div>
@@ -366,7 +441,7 @@ const UsersManagement = () => {
                    }
                 </td>
                 <td style={{textAlign:'right'}}>
-                  <Edit2 size={16} style={{color:'#6b7280'}} />
+                  <Edit2 size={16} style={{color:'#6b7280', verticalAlign:'middle'}} />
                 </td>
               </tr>
             ))}
@@ -387,18 +462,28 @@ const UsersManagement = () => {
             </ModalHeader>
             
             <ModalBody>
-              {/* Coluna Esquerda: Dados Pessoais */}
+              {/* Lado Esquerdo: Dados Pessoais */}
               <form onSubmit={handleUpdateUser}>
-                <UserInfoSection>
+                <SidebarInfo>
                   <div style={{display:'flex', alignItems:'center', gap:'1rem', marginBottom:'1rem'}}>
                     <div style={{width:'64px', height:'64px', borderRadius:'50%', background:'#333', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.5rem', fontWeight:'bold', color:'#666'}}>
-                      {selectedUser.nome?.charAt(0).toUpperCase()}
+                      {selectedUser.nome?.charAt(0).toUpperCase() || 'U'}
                     </div>
                     <div>
                       <div style={{fontSize:'1.25rem', fontWeight:700, color:'white'}}>{selectedUser.nome}</div>
                       <div style={{color:'#6b7280', fontSize:'0.85rem'}}>ID: {selectedUser.id.slice(0,8)}...</div>
                     </div>
                   </div>
+                  
+                  <ActionGroup>
+                    {/* Botão de Excluir */}
+                    <DeleteTableButton 
+                      onClick={() => handleDeleteUser(selectedUser.id, selectedUser.nome)}
+                      type="button" // Previne submissão do form
+                    >
+                      <Trash2 size={16} /> EXCLUIR ESTE USUÁRIO
+                    </DeleteTableButton>
+                  </ActionGroup>
 
                   <InfoGroup>
                     <label>Nome Completo</label>
@@ -433,31 +518,34 @@ const UsersManagement = () => {
                       type="checkbox" 
                       checked={selectedUser.isAdmin || false} 
                       onChange={e => setSelectedUser({...selectedUser, isAdmin: e.target.checked})}
-                      style={{width:'auto'}}
+                      style={{width:'1.2rem', height:'1.2rem'}}
                     />
-                    <label style={{marginBottom:0, color:'white', textTransform:'none'}}>Acesso Administrativo</label>
+                    <label style={{marginBottom:0, color:'white', textTransform:'none', fontSize:'0.9rem'}}>Acesso Administrativo</label>
                   </div>
 
                   <SaveButton type="submit">Salvar Alterações</SaveButton>
-                </UserInfoSection>
+                </SidebarInfo>
               </form>
 
               {/* Coluna Direita: Histórico */}
-              <HistorySection>
-                <h4 style={{display:'flex', alignItems:'center', gap:'0.5rem'}}>
-                  <Ticket size={18} className="text-primary" /> Histórico de Compras
-                </h4>
+              <ContentInfo>
+                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                  <h4 style={{fontSize:'1rem', fontWeight:700, color:'white', display:'flex', alignItems:'center', gap:'0.5rem'}}>
+                    <Ticket size={18} className="text-primary" /> Histórico de Ingressos
+                  </h4>
+                  <span style={{color:'#6b7280', fontSize:'0.75rem'}}>{userHistory.length} tickets</span>
+                </div>
                 
-                <div style={{display:'flex', flexDirection:'column', gap:'0.5rem', maxHeight:'400px', overflowY:'auto'}}>
+                <TicketHistoryList>
                   {userHistory.length === 0 ? (
-                    <div style={{textAlign:'center', padding:'3rem', color:'#444', border:'2px dashed #222', borderRadius:'0.75rem'}}>
+                    <div style={{textAlign:'center', padding:'3rem', color:'#444', border:'2px dashed #222', borderRadius:'0.75rem', marginTop:'1rem'}}>
                       <p>Nenhuma compra registrada.</p>
                     </div>
                   ) : (
                     userHistory.map(ticket => (
                       <TicketItem key={ticket.id}>
-                        <div className="info">
-                          <h4>{ticket.movieTitle || ticket.filmeId}</h4>
+                        <div>
+                          <div className="movie">{ticket.movieTitle || ticket.filmeId}</div>
                           <span>
                             <Calendar size={12} /> 
                             {ticket.dataSessao?.seconds 
@@ -472,8 +560,8 @@ const UsersManagement = () => {
                       </TicketItem>
                     ))
                   )}
-                </div>
-              </HistorySection>
+                </TicketHistoryList>
+              </ContentInfo>
             </ModalBody>
           </ModalCard>
         </ModalOverlay>
