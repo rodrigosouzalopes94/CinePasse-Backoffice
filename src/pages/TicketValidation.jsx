@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled, { keyframes, css } from 'styled-components';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDoc } from "firebase/firestore";
 import { CheckCircle, XCircle, Search, Filter, Ticket, Clock, User } from 'lucide-react';
 
 // ✅ IMPORTAÇÃO CORRETA (Para seu projeto local)
@@ -230,8 +230,8 @@ const Badge = styled.span`
   letter-spacing: 0.025em;
 
   ${props => {
-    switch(props.$status) {
-      case 'Pendente': 
+    switch (props.$status) {
+      case 'Pendente':
         return css`background: rgba(234, 179, 8, 0.1); color: #facc15; border-color: rgba(234, 179, 8, 0.2);`;
       case 'Aprovado':
         return css`background: rgba(34, 197, 94, 0.1); color: #4ade80; border-color: rgba(34, 197, 94, 0.2);`;
@@ -323,23 +323,39 @@ const TicketValidation = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('Todos');
+  const [usersMap, setUsersMap] = useState({});
+
 
   useEffect(() => {
     // Verificação de segurança para evitar crash se o db não carregar
-    if (!db) { 
-      setLoading(false); 
-      return; 
+    if (!db) {
+      setLoading(false);
+      return;
     }
-    
+
     // Ordena do mais recente para o mais antigo
     const q = query(collection(db, "tickets"), orderBy("dataCriacao", "desc"));
-    
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const ticketsData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
       setTickets(ticketsData);
+
+      ticketsData.forEach(async (ticket) => {
+        if (ticket.usuarioId && !usersMap[ticket.usuarioId]) {
+          const userRef = doc(db, "users", ticket.usuarioId);
+          const userSnap = await getDoc(userRef);
+
+          if (userSnap.exists()) {
+            setUsersMap(prev => ({
+              ...prev,
+              [ticket.usuarioId]: userSnap.data().nome
+            }));
+          }
+        }
+      });
       setLoading(false);
     }, (error) => {
       console.error("Erro ao buscar tickets:", error);
@@ -365,12 +381,12 @@ const TicketValidation = () => {
   // Lógica de Filtragem (Frontend)
   const filteredTickets = tickets.filter(ticket => {
     const searchLower = searchTerm.toLowerCase();
-    
-    const matchesSearch = 
+
+    const matchesSearch =
       (ticket.movieTitle && ticket.movieTitle.toLowerCase().includes(searchLower)) ||
       (ticket.usuarioId && ticket.usuarioId.toLowerCase().includes(searchLower)) ||
       (ticket.codigoCompra && ticket.codigoCompra.toLowerCase().includes(searchLower));
-    
+
     const matchesFilter = filterStatus === 'Todos' || ticket.statusAprovacao === filterStatus;
 
     return matchesSearch && matchesFilter;
@@ -395,18 +411,18 @@ const TicketValidation = () => {
         <FilterGroup>
           <InputWrapper>
             <Search size={18} />
-            <StyledInput 
-              type="text" 
-              placeholder="Buscar código, filme ou UID..." 
+            <StyledInput
+              type="text"
+              placeholder="Buscar código, filme ou UID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </InputWrapper>
-          
+
           <InputWrapper>
             <Filter size={18} />
-            <StyledSelect 
-              value={filterStatus} 
+            <StyledSelect
+              value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
             >
               <option value="Todos">Todos os Status</option>
@@ -427,7 +443,7 @@ const TicketValidation = () => {
                 <th>Cliente</th>
                 <th>Tipo / Código</th>
                 <th>Status</th>
-                <th style={{textAlign: 'right'}}>Ações</th>
+                <th style={{ textAlign: 'right' }}>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -438,7 +454,7 @@ const TicketValidation = () => {
                       <span className="primary">{ticket.movieTitle || "Filme Desconhecido"}</span>
                       <span className="secondary">
                         <Clock size={12} />
-                        {ticket.dataSessao?.seconds 
+                        {ticket.dataSessao?.seconds
                           ? new Date(ticket.dataSessao.seconds * 1000).toLocaleDateString('pt-BR')
                           : 'Data N/A'
                         }
@@ -446,14 +462,14 @@ const TicketValidation = () => {
                       </span>
                     </InfoCell>
                   </td>
-                  
+
                   <td>
                     <InfoCell>
-                      <span className="primary" style={{fontSize: '0.85rem', fontFamily: 'monospace'}}>
-                        {ticket.usuarioId ? ticket.usuarioId.slice(0, 8) + '...' : 'N/A'}
+                      <span className="primary" style={{ fontSize: '0.85rem', fontFamily: 'monospace' }}>
+                        {usersMap[ticket.usuarioId] || 'Carregando...'}
                       </span>
                       <span className="secondary">
-                        <User size={12} /> UID do Usuário
+                        <User size={12} /> Cliente
                       </span>
                     </InfoCell>
                   </td>
@@ -462,7 +478,7 @@ const TicketValidation = () => {
                     <Tag $isSubscription={ticket.tipoReserva === 'Plano Assinatura'}>
                       {ticket.ticketType || ticket.tipoReserva || 'Reserva Normal'}
                     </Tag>
-                    <div style={{fontFamily: 'monospace', color: '#9ca3af', fontSize: '0.8rem', fontWeight: 'bold'}}>
+                    <div style={{ fontFamily: 'monospace', color: '#9ca3af', fontSize: '0.8rem', fontWeight: 'bold' }}>
                       {ticket.codigoCompra || ticket.code || '---'}
                     </div>
                   </td>
@@ -473,18 +489,18 @@ const TicketValidation = () => {
                     </Badge>
                   </td>
 
-                  <td style={{textAlign: 'right'}}>
+                  <td style={{ textAlign: 'right' }}>
                     {ticket.statusAprovacao === 'Pendente' ? (
-                      <div style={{display: 'flex', justifyContent: 'flex-end'}}>
-                        <ActionButton 
-                          $variant="approve" 
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <ActionButton
+                          $variant="approve"
                           onClick={() => handleStatus(ticket.id, 'Aprovado')}
                           title="Aprovar Reserva"
                         >
                           <CheckCircle size={18} />
                         </ActionButton>
-                        <ActionButton 
-                          $variant="reject" 
+                        <ActionButton
+                          $variant="reject"
                           onClick={() => handleStatus(ticket.id, 'Rejeitado')}
                           title="Rejeitar Reserva"
                         >
@@ -492,7 +508,7 @@ const TicketValidation = () => {
                         </ActionButton>
                       </div>
                     ) : (
-                      <span style={{color: '#4b5563', fontSize: '0.75rem', fontStyle: 'italic', paddingRight: '0.5rem'}}>
+                      <span style={{ color: '#4b5563', fontSize: '0.75rem', fontStyle: 'italic', paddingRight: '0.5rem' }}>
                         Processado
                       </span>
                     )}
@@ -501,7 +517,7 @@ const TicketValidation = () => {
               ))}
             </tbody>
           </Table>
-          
+
           {filteredTickets.length === 0 && (
             <EmptyState>
               <Ticket size={48} />
