@@ -1,98 +1,186 @@
-🎬 CinePasse Admin (Backoffice)
+# 🎬 CinePasse Admin (Backoffice)
 
-O CinePasse Admin é o painel de controle web para a gestão da plataforma de cinema CinePasse. Ele permite que administradores gerenciem o catálogo de filmes, validem ingressos em tempo real e acompanhem as métricas de vendas.
+O **CinePasse Admin** é o painel de controle web responsável pela **gestão operacional da plataforma CinePasse**. Ele permite que administradores validem ingressos, gerenciem o catálogo de filmes e acompanhem métricas do sistema em tempo real.
 
-Este projeto opera em conjunto com o App Mobile CinePasse (Flutter), compartilhando o mesmo banco de dados Firebase.
+Este projeto funciona **integrado ao App Mobile CinePasse (Flutter)**, compartilhando o mesmo backend Firebase (Auth + Firestore).
 
-🖥️ Funcionalidades
+---
 
-1. Dashboard
+## 🖥️ Funcionalidades
 
-Visão geral em tempo real.
+### 📊 Dashboard
 
-Contadores de vendas, tickets pendentes e usuários ativos.
+* Visão geral do sistema em tempo real
+* Contadores de vendas, tickets pendentes e usuários ativos
+* Indicador de status operacional da plataforma
 
-Indicador de status do sistema.
+---
 
-2. Validação de Tickets (Core Business)
+### 🎟️ Validação de Tickets (Core Business)
 
-Listagem de todas as reservas feitas pelo App Mobile.
+* Listagem de todas as reservas feitas pelo App Mobile
+* **Aprovação**: valida assinatura ou pagamento avulso e libera o ingresso
+* **Rejeição**: cancela a reserva
+* Filtros por status:
 
-Aprovação: Confirma o pagamento ou assinatura e libera o ingresso para o usuário.
+  * Pendente
+  * Aprovado
+  * Rejeitado
+* Busca por código de ticket
 
-Rejeição: Cancela a reserva.
+---
 
-Filtros por status (Pendente, Aprovado, Rejeitado) e busca por código.
+### 🎬 Catálogo de Filmes
 
-3. Catálogo de Filmes
+* Adição de novos filmes
 
-Adição de novos filmes (Título, Gênero, Poster, Sinopse).
+  * Título
+  * Gênero
+  * Poster
+  * Sinopse
+* Edição de filmes
+* Exclusão de filmes
+* Atualização instantânea no App Mobile via Firestore Streams
 
-Exclusão de filmes.
+---
 
-Atualização instantânea no App Mobile.
+### 👤 Gestão de Usuários
 
-🛠️ Tecnologias
+* Visualização de usuários cadastrados
+* Consulta de dados básicos
+* Edição de informações e planos (quando necessário)
 
-Frontend: React.js (Vite)
+---
 
-Estilização: Styled Components (CSS-in-JS)
+## 🛠️ Tecnologias Utilizadas
 
-Ícones: Lucide React
+* **Frontend:** React.js + Vite
+* **Estilização:** Styled Components (CSS-in-JS)
+* **Ícones:** Lucide React
+* **Backend:** Firebase Authentication & Firestore
 
-Backend: Firebase (Auth & Firestore)
+---
 
-🚀 Como Rodar Localmente
+## 🚀 Como Rodar Localmente
 
-Pré-requisitos
+### ✅ Pré-requisitos
 
-Node.js instalado (versão 16+).
+* Node.js 16 ou superior
+* Projeto configurado no Firebase
 
-Projeto configurado no Firebase.
+---
 
-Instalação
+### 📥 Instalação
 
 Clone o repositório:
 
-git clone [https://github.com/rodrigosouzalopes94/CinePasse-Backoffice.git](https://github.com/rodrigosouzalopes94/CinePasse-Backoffice.git)
+```bash
+git clone https://github.com/rodrigosouzalopes94/CinePasse-Backoffice.git
 cd CinePasse-Backoffice
-
+```
 
 Instale as dependências:
 
+```bash
 npm install
-
+```
 
 Configure o Firebase:
 
-Crie o arquivo src/config/firebase.js.
+* Crie o arquivo:
 
-Cole suas chaves de API (veja o arquivo FIREBASE_SETUP.md se disponível ou consulte o console do Firebase).
+  ```
+  src/config/firebase.js
+  ```
+* Insira suas credenciais do Firebase
+* Consulte o `FIREBASE_SETUP.md` ou o console do Firebase
 
-Inicie o servidor de desenvolvimento:
+Inicie o servidor:
 
+```bash
 npm run dev
+```
+
+Acesse no navegador:
+
+```
+http://localhost:5173
+```
+
+---
+
+## 📦 Deploy
+
+O Backoffice do CinePasse já está publicado e disponível online:
+
+🌐 **Acesso em Produção:**
+[https://cine-passe-backoffice.vercel.app/](https://cine-passe-backoffice.vercel.app/)
 
 
-Acesse http://localhost:5173 no navegador.
 
-📦 Deploy
+### Build de Produção
 
-Este projeto está configurado para deploy fácil na Vercel ou Firebase Hosting.
-
-Build de Produção
-
+```bash
 npm run build
+```
 
+A pasta `dist/` será gerada e estará pronta para publicação.
 
-Isso gerará a pasta dist/ pronta para publicação.
+---
 
-🔐 Regras de Segurança
+## 🔐 Segurança e Controle de Acesso
 
-O acesso ao painel é restrito.
+* Acesso restrito ao painel administrativo
+* Autenticação via Firebase Auth
+* Operações críticas protegidas por **Firestore Security Rules**
+* Apenas usuários com permissão de administrador podem:
 
-Login: Requer autenticação via Firebase Auth.
+  * Aprovar/Rejeitar tickets
+  * Gerenciar catálogo de filmes
+  * Editar usuários
 
-Permissões: As operações de escrita (Aprovar Ticket, Adicionar Filme) são protegidas por Firestore Security Rules e exigem que o usuário tenha o UID de Administrador.
+---
 
-Desenvolvido para o ecossistema CinePasse.
+## 🖼️ Screenshots do Backoffice
+
+> As imagens abaixo representam as principais telas do painel administrativo.
+
+### 📊 Dashboard
+
+<p align="center">
+  <img src="screenshots/dashboard.png" width="600" />
+</p>
+
+### 🎟️ Validação de Tickets
+
+<p align="center">
+  <img src="screenshots/ticketvalidation.png" width="600" />
+  <img src="screenshots/movievalidation.png" width="600" />
+</p>
+
+### 🎬 Gestão de Filmes
+
+<p align="center">
+  <img src="screenshots/home.png" width="600" />
+  <img src="screenshots/editmovie.png" width="600" />
+</p>
+
+### 👤 Gestão de Usuários
+
+<p align="center">
+  <img src="screenshots/usersceen.png" width="600" />
+  <img src="screenshots/edituser.png" width="600" />
+</p>
+
+---
+
+## ✅ Considerações Finais
+
+O **CinePasse Admin** garante:
+
+* Controle total das regras de negócio
+* Validação humana e segura dos ingressos
+* Atualizações em tempo real
+* Escalabilidade e segurança para ambiente de produção
+
+Desenvolvido como parte do **ecossistema CinePasse**.
